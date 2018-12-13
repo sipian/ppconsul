@@ -35,6 +35,13 @@ namespace ppconsul { namespace catalog {
     
 namespace impl {
 
+    namespace {
+        s11n::Json::array to_json(const Tags& tags)
+        {
+            return s11n::Json::array(tags.begin(), tags.end());
+        }
+    }
+
     std::vector<std::string> parseDatacenters(const std::string& json)
     {
         return s11n::parseJson<std::vector<std::string>>(json);
@@ -58,6 +65,28 @@ namespace impl {
     std::vector<NodeService> parseService(const std::string& json)
     {
         return s11n::parseJson<std::vector<NodeService>>(json);
+    }
+
+    std::string serviceRegistrationJson(const ServiceRegistrationData& service)
+    {
+        using s11n::Json;
+
+        Json::object o {
+            { "Node", service.node },
+            { "Address", service.address },
+        };
+
+        Json::object service_o {
+            { "ID", service.id },
+            { "Service", service.service },
+            { "Tags", to_json(service.tags) },
+            { "Port", service.port },
+            { "EnableTagOverride", service.enableTagOverride },
+            { "Address", service.address }
+        };
+
+        o["Service"] = service_o;
+        return Json(std::move(o)).dump();
     }
 
 }

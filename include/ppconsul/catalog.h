@@ -23,17 +23,28 @@ namespace ppconsul { namespace catalog {
         using ppconsul::kw::dc;
         using ppconsul::kw::tag;
 
+        KWARGS_KEYWORD(id, std::string)
+        KWARGS_KEYWORD(service, std::string)
+        KWARGS_KEYWORD(address, std::string)
+        KWARGS_KEYWORD(node, std::string)
+        KWARGS_KEYWORD(port, uint16_t)
+        KWARGS_KEYWORD(tags, Tags)
+        KWARGS_KEYWORD(enableTagOverride, bool)
+
         namespace groups {
             KWARGS_KEYWORDS_GROUP(get, (consistency, dc, block_for))
         }
     }
 
     namespace impl {
+        struct ServiceRegistrationData;
+
         std::vector<std::string> parseDatacenters(const std::string& json);
         std::vector<Node> parseNodes(const std::string& json);
         NodeServices parseNode(const std::string& json);
         std::unordered_map<std::string, Tags> parseServices(const std::string& json);
         std::vector<NodeService> parseService(const std::string& json);
+        std::string serviceRegistrationJson(const ServiceRegistrationData& service);
     }
 
     class Catalog
@@ -120,6 +131,17 @@ namespace ppconsul { namespace catalog {
             return std::move(service(withHeaders, name, params...).data());
         }
 
+        // Allowed parameters:
+        // - name - the service's name (required)
+        // - id - the service's id, set to the service's name by default
+        // - tags - the service's tags, empty by default
+        // - address - the service's address, empty by default (Note that Consul docs say one is set to the agent's address but this is not true)
+        // - port - the service's port, set to 0 by default
+        // - check - parameters for a check associated with the service, no check is associated if omitted
+        // - notes - notes for a check associated with the service, empty by default
+        template<class... Params, class = kwargs::enable_if_kwargs_t<Params...>>
+        void registerService(Params&&... params);
+
     private:
         Consul& m_consul;
 
@@ -129,6 +151,41 @@ namespace ppconsul { namespace catalog {
 
 
     // Implementation
+
+    namespace impl {
+        struct ServiceRegistrationData
+        {
+            template<class... Params, class = kwargs::enable_if_kwargs_t<Params...>>
+            ServiceRegistrationData(Params&&... params)
+            : id(kwargs::get(kw::id, std::forward<Params>(params)...))
+            , service(kwargs::get(kw::service, std::forward<Params>(params)...))
+            , address(kwargs::get(kw::address, std::forward<Params>(params)...))
+            , node(kwargs::get(kw::node, std::forward<Params>(params)...))
+            , port(kwargs::get_opt(kw::port, 0, std::forward<Params>(params)...))
+            , tags(kwargs::get_opt(kw::tags, Tags(), std::forward<Params>(params)...))
+            , enableTagOverride(kwargs::get_opt(kw::enableTagOverride, false, std::forward<Params>(params)...))
+            {
+                KWARGS_CHECK_IN_LIST(Params, (
+                    kw::id, kw::service, kw::address, kw::node, kw::port,
+                        kw::tags, kw::enableTagOverride))
+            }
+
+            std::string id;
+            std::string service;
+            std::string address;
+            std::string node;
+            uint16_t port;
+            Tags tags;
+            bool enableTagOverride;
+        };
+    }
+
+    template<class... Params, class>
+    inline void Catalog::registerService(Params&&... params)
+    {
+        m_consul.put("/v1/catalog/register",
+                     impl::serviceRegistrationJson({std::forward<Params>(params)...}));
+    }
 
     template<class... Params, class>
     Response<std::vector<Node>> Catalog::nodes(WithHeaders, const Params&... params) const

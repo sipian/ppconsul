@@ -110,10 +110,11 @@ namespace ppconsul { namespace agent {
         KWARGS_KEYWORD(name, std::string)
         KWARGS_KEYWORD(notes, std::string)
         KWARGS_KEYWORD(id, std::string)
-        KWARGS_KEYWORD(check, CheckParams)
         KWARGS_KEYWORD(port, uint16_t)
         KWARGS_KEYWORD(address, std::string)
         KWARGS_KEYWORD(tags, Tags)
+        KWARGS_KEYWORD(enableTagOverride, bool)
+        KWARGS_KEYWORD(check, CheckParams)
 
         PPCONSUL_KEYWORD(pool, Pool)
         PPCONSUL_KEYWORD(note, std::string)
@@ -134,6 +135,7 @@ namespace ppconsul { namespace agent {
         std::pair<Config, Member> parseSelf(const std::string& json);
         std::unordered_map<std::string, CheckInfo> parseChecks(const std::string& json);
         std::unordered_map<std::string, ServiceInfo> parseServices(const std::string& json);
+        ServiceInfo parseService(const std::string& json);
 
         std::string checkRegistrationJson(const CheckRegistrationData& check);
         std::string serviceRegistrationJson(const ServiceRegistrationData& service);
@@ -244,6 +246,11 @@ namespace ppconsul { namespace agent {
             return impl::parseServices(m_consul.get("/v1/agent/services"));
         }
 
+        ServiceInfo service(const std::string& serviceId) const
+        {
+            return impl::parseService(m_consul.get("/v1/agent/service/" + serviceId));
+        }
+
         // Allowed parameters:
         // - name - the service's name (required)
         // - id - the service's id, set to the service's name by default
@@ -345,13 +352,14 @@ namespace ppconsul { namespace agent {
             , address(kwargs::get_opt(kw::address, std::string(), std::forward<Keywords>(params)...))
             , port(kwargs::get_opt(kw::port, 0, std::forward<Keywords>(params)...))
             , tags(kwargs::get_opt(kw::tags, Tags(), std::forward<Keywords>(params)...))
+            , enableTagOverride(kwargs::get_opt(kw::enableTagOverride, false, std::forward<Keywords>(params)...))
             , check({
                 kwargs::get(kw::check, std::forward<Keywords>(params)...),
                 kwargs::get_opt(kw::notes, std::string(), std::forward<Keywords>(params)...)})
             {
                 KWARGS_CHECK_IN_LIST(Keywords, (
                     kw::id, kw::name, kw::address, kw::port, kw::tags,
-                        kw::check, kw::notes))
+                        kw::check, kw::notes,  kw::enableTagOverride))
             }
 
             template<class... Keywords, class = kwargs::enable_if_kwargs_t<Keywords...>>
@@ -361,9 +369,10 @@ namespace ppconsul { namespace agent {
             , address(kwargs::get_opt(kw::address, std::string(), std::forward<Keywords>(params)...))
             , port(kwargs::get_opt(kw::port, 0, std::forward<Keywords>(params)...))
             , tags(kwargs::get_opt(kw::tags, Tags(), std::forward<Keywords>(params)...))
+            , enableTagOverride(kwargs::get_opt(kw::enableTagOverride, false, std::forward<Keywords>(params)...))
             {
                 KWARGS_CHECK_IN_LIST(Keywords, (
-                    kw::id, kw::name, kw::address, kw::port, kw::tags))
+                    kw::id, kw::name, kw::address, kw::port, kw::tags, kw::enableTagOverride))
             }
 
             template<class... Keywords, class = kwargs::enable_if_kwargs_t<Keywords...>>
@@ -378,6 +387,7 @@ namespace ppconsul { namespace agent {
             std::string address;
             uint16_t port = 0;
             Tags tags;
+            bool enableTagOverride;
 
             boost::optional<Check> check;
         };

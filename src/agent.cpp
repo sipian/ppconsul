@@ -131,6 +131,11 @@ namespace impl {
         return s11n::parseJson<std::unordered_map<std::string, ServiceInfo>>(json);
     }
 
+    ServiceInfo parseService(const std::string& json)
+    {
+        return s11n::parseJson<ServiceInfo>(json);
+    }
+
     std::string checkRegistrationJson(const CheckRegistrationData& check)
     {
         using s11n::Json;
@@ -155,7 +160,8 @@ namespace impl {
             { "Name", service.name },
             { "Tags", to_json(service.tags) },
             { "Address", service.address },
-            { "Port", service.port }
+            { "Port", service.port },
+            { "EnableTagOverride", service.enableTagOverride },
         };
 
         if (service.check)
